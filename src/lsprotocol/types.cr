@@ -8436,6 +8436,7 @@ module LSProtocol
     # The request id where the error occurred.
     property id : Int32 | String
     # The error object in case a request fails.
+    @[JSON::Field(emit_null: true)]
     property result : JSON::Any?
 
     def initialize(@id : Int32 | String, @result : JSON::Any? = nil)
@@ -10900,7 +10901,7 @@ module LSProtocol
 
   Enum.string MessageDirection do
     ServerToClient
-    Both
     ClientToServer
+    Both
   end
 end
