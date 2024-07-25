@@ -1948,7 +1948,7 @@ module LSProtocol
   end
 
   # The initialize parameters
-  class InitializeParams
+  class InitializeParamsPrivate
     include JSON::Serializable
 
     property capabilities : ClientCapabilities
@@ -10901,7 +10901,7 @@ module LSProtocol
 
   Enum.string MessageDirection do
     ServerToClient
-    ClientToServer
     Both
+    ClientToServer
   end
 end
