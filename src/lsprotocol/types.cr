@@ -3144,6 +3144,26 @@ module LSProtocol
   class CompletionList
     include JSON::Serializable
 
+    # Specifies how fields from a completion item should be combined with those
+    # from `completionList.itemDefaults`.
+    #
+    # If unspecified, all fields will be treated as "replace".
+    #
+    # If a field's value is "replace", the value from a completion item (if
+    # provided and not `null`) will always be used instead of the value from
+    # `completionItem.itemDefaults`.
+    #
+    # If a field's value is "merge", the values will be merged using the rules
+    # defined against each field below.
+    #
+    # Servers are only allowed to return `applyKind` if the client
+    # signals support for this via the `completionList.applyKindSupport`
+    # capability.
+    #
+    # @since 3.18.0
+    @[JSON::Field(key: "applyKind")]
+    getter apply_kind : CompletionItemApplyKinds?
+
     # This list it not complete. Further typing results in recomputing this list.
     #
     # Recomputed lists have all their items replaced (not appended) in the
@@ -3157,7 +3177,9 @@ module LSProtocol
     # be used if a completion item itself doesn't specify the value.
     #
     # If a completion list specifies a default value and a completion item
-    # also specifies a corresponding value the one from the item is used.
+    # also specifies a corresponding value, the rules for combining these are
+    # defined by `applyKinds` (if the client supports it), defaulting to
+    # "replace".
     #
     # Servers are only allowed to return default values if the client
     # signals support for this via the `completionList.itemDefaults`
@@ -3173,6 +3195,7 @@ module LSProtocol
     def initialize(
       @is_incomplete : Bool?,
       @items : Array(CompletionItem)?,
+      @apply_kind : CompletionItemApplyKinds? = nil,
       @item_defaults : CompletionItemDefaults? = nil,
     )
     end
@@ -4030,6 +4053,11 @@ module LSProtocol
     # Used to filter code actions.
     getter kind : CodeActionKind | String?
 
+    # Tags for this code action.
+    #
+    # @since 3.18.0 - proposed
+    getter tags : Array(CodeActionTag)?
+
     # A short, human-readable, title for this code action.
     getter title : String
 
@@ -4042,6 +4070,7 @@ module LSProtocol
       @edit : WorkspaceEdit? = nil,
       @is_preferred : Bool? = nil,
       @kind : CodeActionKind | String? = nil,
+      @tags : Array(CodeActionTag)? = nil,
     )
     end
   end
@@ -6438,7 +6467,9 @@ module LSProtocol
   # be used if a completion item itself doesn't specify the value.
   #
   # If a completion list specifies a default value and a completion item
-  # also specifies a corresponding value the one from the item is used.
+  # also specifies a corresponding value, the rules for combining these are
+  # defined by `applyKinds` (if the client supports it), defaulting to
+  # "replace".
   #
   # Servers are only allowed to return default values if the client
   # signals support for this via the `completionList.itemDefaults`
@@ -6483,6 +6514,75 @@ module LSProtocol
       @edit_range : EditRangeWithInsertReplace | Range? = nil,
       @insert_text_format : InsertTextFormat? = nil,
       @insert_text_mode : InsertTextMode? = nil,
+    )
+    end
+  end
+
+  # Specifies how fields from a completion item should be combined with those
+  # from `completionList.itemDefaults`.
+  #
+  # If unspecified, all fields will be treated as "replace".
+  #
+  # If a field's value is "replace", the value from a completion item (if
+  # provided and not `null`) will always be used instead of the value from
+  # `completionItem.itemDefaults`.
+  #
+  # If a field's value is "merge", the values will be merged using the rules
+  # defined against each field below.
+  #
+  # Servers are only allowed to return `applyKind` if the client
+  # signals support for this via the `completionList.applyKindSupport`
+  # capability.
+  #
+  # @since 3.18.0
+  class CompletionItemApplyKinds
+    include JSON::Serializable
+
+    # Specifies whether commitCharacters on a completion will replace or be
+    # merged with those in `completionList.itemDefaults.commitCharacters`.
+    #
+    # If "replace", the commit characters from the completion item will
+    # always be used unless not provided, in which case those from
+    # `completionList.itemDefaults.commitCharacters` will be used. An
+    # empty list can be used if a completion item does not have any commit
+    # characters and also should not use those from
+    # `completionList.itemDefaults.commitCharacters`.
+    #
+    # If "merge" the commitCharacters for the completion will be the union
+    # of all values in both `completionList.itemDefaults.commitCharacters`
+    # and the completion's own `commitCharacters`.
+    #
+    # @since 3.18.0
+    @[JSON::Field(key: "commitCharacters")]
+    getter commit_characters : ApplyKind?
+
+    # Specifies whether the `data` field on a completion will replace or
+    # be merged with data from `completionList.itemDefaults.data`.
+    #
+    # If "replace", the data from the completion item will be used if
+    # provided (and not `null`), otherwise
+    # `completionList.itemDefaults.data` will be used. An empty object can
+    # be used if a completion item does not have any data but also should
+    # not use the value from `completionList.itemDefaults.data`.
+    #
+    # If "merge", a shallow merge will be performed between
+    # `completionList.itemDefaults.data` and the completion's own data
+    # using the following rules:
+    #
+    # - If a completion's `data` field is not provided (or `null`), the
+    #   entire `data` field from `completionList.itemDefaults.data` will be
+    #   used as-is.
+    # - If a completion's `data` field is provided, each field will
+    #   overwrite the field of the same name in
+    #   `completionList.itemDefaults.data` but no merging of nested fields
+    #   within that value will occur.
+    #
+    # @since 3.18.0
+    getter data : ApplyKind?
+
+    def initialize(
+      @commit_characters : ApplyKind? = nil,
+      @data : ApplyKind? = nil,
     )
     end
   end
@@ -8892,6 +8992,13 @@ module LSProtocol
     @[JSON::Field(key: "resolveSupport")]
     getter resolve_support : ClientCodeActionResolveOptions?
 
+    # Client supports the tag property on a code action. Clients
+    # supporting tags have to handle unknown tags gracefully.
+    #
+    # @since 3.18.0 - proposed
+    @[JSON::Field(key: "tagSupport")]
+    getter tag_support : CodeActionTagOptions?
+
     def initialize(
       @code_action_literal_support : ClientCodeActionLiteralOptions? = nil,
       @data_support : Bool? = nil,
@@ -8901,6 +9008,7 @@ module LSProtocol
       @honors_change_annotations : Bool? = nil,
       @is_preferred_support : Bool? = nil,
       @resolve_support : ClientCodeActionResolveOptions? = nil,
+      @tag_support : CodeActionTagOptions? = nil,
     )
     end
   end
@@ -9745,6 +9853,20 @@ module LSProtocol
   class CompletionListCapabilities
     include JSON::Serializable
 
+    # Specifies whether the client supports `CompletionList.applyKind` to
+    # indicate how supported values from `completionList.itemDefaults`
+    # and `completion` will be combined.
+    #
+    # If a client supports `applyKind` it must support it for all fields
+    # that it supports that are listed in `CompletionList.applyKind`. This
+    # means when clients add support for new/future fields in completion
+    # items the MUST also support merge for them if those fields are
+    # defined in `CompletionList.applyKind`.
+    #
+    # @since 3.18.0
+    @[JSON::Field(key: "applyKindSupport")]
+    getter apply_kind_support : Bool?
+
     # The client supports the following itemDefaults on
     # a completion list.
     #
@@ -9757,6 +9879,7 @@ module LSProtocol
     getter item_defaults : Array(String)?
 
     def initialize(
+      @apply_kind_support : Bool? = nil,
       @item_defaults : Array(String)? = nil,
     )
     end
@@ -9824,6 +9947,20 @@ module LSProtocol
 
     def initialize(
       @properties : Array(String)?,
+    )
+    end
+  end
+
+  # @since 3.18.0 - proposed
+  class CodeActionTagOptions
+    include JSON::Serializable
+
+    # The tags supported by the client.
+    @[JSON::Field(key: "valueSet")]
+    getter value_set : Array(CodeActionTag)
+
+    def initialize(
+      @value_set : Array(CodeActionTag)?,
     )
     end
   end
@@ -10843,6 +10980,26 @@ module LSProtocol
     end
   end
 
+  # Code action tags are extra annotations that tweak the behavior of a code action.
+  #
+  # @since 3.18.0 - proposed
+  enum CodeActionTag : UInt32
+    # Marks the code action as LLM-generated.
+    LlmGenerated = 1
+
+    def self.new(pull : JSON::PullParser) : self
+      self.from_json(pull)
+    end
+
+    def self.from_json(pull : JSON::PullParser) : self
+      self.from_value?(pull.read_int) || pull.raise "Unknown enum #{self} value: #{pull.int_value}"
+    end
+
+    def to_json(json : JSON::Builder)
+      json.number(value)
+    end
+  end
+
   enum TraceValue
     # Turn tracing off.
     Off
@@ -11293,6 +11450,49 @@ module LSProtocol
 
     def to_json(json : JSON::Builder)
       json.number(value)
+    end
+  end
+
+  # Defines how values from a set of defaults and an individual item will be
+  # merged.
+  #
+  # @since 3.18.0
+  enum ApplyKind
+    # The value from the individual item (if provided and not `null`) will be
+    # used instead of the default.
+    Replace
+
+    # The value from the item will be merged with the default.
+    #
+    # The specific rules for mergeing values are defined against each field
+    # that supports merging.
+    Merge
+
+    def self.new(pull : JSON::PullParser) : self
+      self.from_json(pull)
+    end
+
+    def self.from_json(pull : JSON::PullParser) : self
+      case pull.kind
+      when .int?
+        from_value(pull.read_int)
+      when .string?
+        parse(pull.read_string)
+      else
+        {% if @type.annotation(Flags) %}
+          pull.raise "Expecting int, string or array in JSON for #{self.class}, not #{pull.kind}"
+        {% else %}
+          pull.raise "Expecting int or string in JSON for #{self.class}, not #{pull.kind}"
+        {% end %}
+      end
+    end
+
+    def to_json(builder : JSON::Builder)
+      builder.string self.to_s
+    end
+
+    def to_s(io : IO) : Nil
+      io << self.to_s
     end
   end
 

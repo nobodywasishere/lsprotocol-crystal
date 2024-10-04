@@ -24,3 +24,12 @@ require "lsprotocol"
 
 position = LSP::Position.new(line: 10, character: 3)
 ```
+
+### Generating LSP types
+
+1. Create a python virtual environment: `python -m venv .venv` (use latest python)
+2. Activate the environment:
+    * Windows: `.venv\Script\activate`
+    * Linux\mac: `source .venv\bin\activate`
+3. Install the generator: `python -m pip install git+https://github.com/microsoft/lsprotocol`
+4. Run generator with crystal plugin: `python -m generator --plugin crystalgen --output-dir . --test-dir ./tests`
