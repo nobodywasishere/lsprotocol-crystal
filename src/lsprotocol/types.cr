@@ -3144,6 +3144,26 @@ module LSProtocol
   class CompletionList
     include JSON::Serializable
 
+    # Specifies how fields from a completion item should be combined with those
+    # from `completionList.itemDefaults`.
+    #
+    # If unspecified, all fields will be treated as "replace".
+    #
+    # If a field's value is "replace", the value from a completion item (if
+    # provided and not `null`) will always be used instead of the value from
+    # `completionItem.itemDefaults`.
+    #
+    # If a field's value is "merge", the values will be merged using the rules
+    # defined against each field below.
+    #
+    # Servers are only allowed to return `applyKind` if the client
+    # signals support for this via the `completionList.applyKindSupport`
+    # capability.
+    #
+    # @since 3.18.0
+    @[JSON::Field(key: "applyKind")]
+    getter apply_kind : CompletionItemApplyKinds?
+
     # This list it not complete. Further typing results in recomputing this list.
     #
     # Recomputed lists have all their items replaced (not appended) in the
@@ -3157,7 +3177,9 @@ module LSProtocol
     # be used if a completion item itself doesn't specify the value.
     #
     # If a completion list specifies a default value and a completion item
-    # also specifies a corresponding value the one from the item is used.
+    # also specifies a corresponding value, the rules for combining these are
+    # defined by `applyKinds` (if the client supports it), defaulting to
+    # "replace".
     #
     # Servers are only allowed to return default values if the client
     # signals support for this via the `completionList.itemDefaults`
@@ -3173,6 +3195,7 @@ module LSProtocol
     def initialize(
       @is_incomplete : Bool?,
       @items : Array(CompletionItem)?,
+      @apply_kind : CompletionItemApplyKinds? = nil,
       @item_defaults : CompletionItemDefaults? = nil,
     )
     end
@@ -4030,6 +4053,11 @@ module LSProtocol
     # Used to filter code actions.
     getter kind : CodeActionKind | String?
 
+    # Tags for this code action.
+    #
+    # @since 3.18.0 - proposed
+    getter tags : Array(CodeActionTag)?
+
     # A short, human-readable, title for this code action.
     getter title : String
 
@@ -4042,6 +4070,7 @@ module LSProtocol
       @edit : WorkspaceEdit? = nil,
       @is_preferred : Bool? = nil,
       @kind : CodeActionKind | String? = nil,
+      @tags : Array(CodeActionTag)? = nil,
     )
     end
   end
@@ -6438,7 +6467,9 @@ module LSProtocol
   # be used if a completion item itself doesn't specify the value.
   #
   # If a completion list specifies a default value and a completion item
-  # also specifies a corresponding value the one from the item is used.
+  # also specifies a corresponding value, the rules for combining these are
+  # defined by `applyKinds` (if the client supports it), defaulting to
+  # "replace".
   #
   # Servers are only allowed to return default values if the client
   # signals support for this via the `completionList.itemDefaults`
@@ -6483,6 +6514,75 @@ module LSProtocol
       @edit_range : EditRangeWithInsertReplace | Range? = nil,
       @insert_text_format : InsertTextFormat? = nil,
       @insert_text_mode : InsertTextMode? = nil,
+    )
+    end
+  end
+
+  # Specifies how fields from a completion item should be combined with those
+  # from `completionList.itemDefaults`.
+  #
+  # If unspecified, all fields will be treated as "replace".
+  #
+  # If a field's value is "replace", the value from a completion item (if
+  # provided and not `null`) will always be used instead of the value from
+  # `completionItem.itemDefaults`.
+  #
+  # If a field's value is "merge", the values will be merged using the rules
+  # defined against each field below.
+  #
+  # Servers are only allowed to return `applyKind` if the client
+  # signals support for this via the `completionList.applyKindSupport`
+  # capability.
+  #
+  # @since 3.18.0
+  class CompletionItemApplyKinds
+    include JSON::Serializable
+
+    # Specifies whether commitCharacters on a completion will replace or be
+    # merged with those in `completionList.itemDefaults.commitCharacters`.
+    #
+    # If "replace", the commit characters from the completion item will
+    # always be used unless not provided, in which case those from
+    # `completionList.itemDefaults.commitCharacters` will be used. An
+    # empty list can be used if a completion item does not have any commit
+    # characters and also should not use those from
+    # `completionList.itemDefaults.commitCharacters`.
+    #
+    # If "merge" the commitCharacters for the completion will be the union
+    # of all values in both `completionList.itemDefaults.commitCharacters`
+    # and the completion's own `commitCharacters`.
+    #
+    # @since 3.18.0
+    @[JSON::Field(key: "commitCharacters")]
+    getter commit_characters : ApplyKind?
+
+    # Specifies whether the `data` field on a completion will replace or
+    # be merged with data from `completionList.itemDefaults.data`.
+    #
+    # If "replace", the data from the completion item will be used if
+    # provided (and not `null`), otherwise
+    # `completionList.itemDefaults.data` will be used. An empty object can
+    # be used if a completion item does not have any data but also should
+    # not use the value from `completionList.itemDefaults.data`.
+    #
+    # If "merge", a shallow merge will be performed between
+    # `completionList.itemDefaults.data` and the completion's own data
+    # using the following rules:
+    #
+    # - If a completion's `data` field is not provided (or `null`), the
+    #   entire `data` field from `completionList.itemDefaults.data` will be
+    #   used as-is.
+    # - If a completion's `data` field is provided, each field will
+    #   overwrite the field of the same name in
+    #   `completionList.itemDefaults.data` but no merging of nested fields
+    #   within that value will occur.
+    #
+    # @since 3.18.0
+    getter data : ApplyKind?
+
+    def initialize(
+      @commit_characters : ApplyKind? = nil,
+      @data : ApplyKind? = nil,
     )
     end
   end
@@ -8892,6 +8992,13 @@ module LSProtocol
     @[JSON::Field(key: "resolveSupport")]
     getter resolve_support : ClientCodeActionResolveOptions?
 
+    # Client supports the tag property on a code action. Clients
+    # supporting tags have to handle unknown tags gracefully.
+    #
+    # @since 3.18.0 - proposed
+    @[JSON::Field(key: "tagSupport")]
+    getter tag_support : CodeActionTagOptions?
+
     def initialize(
       @code_action_literal_support : ClientCodeActionLiteralOptions? = nil,
       @data_support : Bool? = nil,
@@ -8901,6 +9008,7 @@ module LSProtocol
       @honors_change_annotations : Bool? = nil,
       @is_preferred_support : Bool? = nil,
       @resolve_support : ClientCodeActionResolveOptions? = nil,
+      @tag_support : CodeActionTagOptions? = nil,
     )
     end
   end
@@ -9745,6 +9853,20 @@ module LSProtocol
   class CompletionListCapabilities
     include JSON::Serializable
 
+    # Specifies whether the client supports `CompletionList.applyKind` to
+    # indicate how supported values from `completionList.itemDefaults`
+    # and `completion` will be combined.
+    #
+    # If a client supports `applyKind` it must support it for all fields
+    # that it supports that are listed in `CompletionList.applyKind`. This
+    # means when clients add support for new/future fields in completion
+    # items the MUST also support merge for them if those fields are
+    # defined in `CompletionList.applyKind`.
+    #
+    # @since 3.18.0
+    @[JSON::Field(key: "applyKindSupport")]
+    getter apply_kind_support : Bool?
+
     # The client supports the following itemDefaults on
     # a completion list.
     #
@@ -9757,6 +9879,7 @@ module LSProtocol
     getter item_defaults : Array(String)?
 
     def initialize(
+      @apply_kind_support : Bool? = nil,
       @item_defaults : Array(String)? = nil,
     )
     end
@@ -9824,6 +9947,20 @@ module LSProtocol
 
     def initialize(
       @properties : Array(String)?,
+    )
+    end
+  end
+
+  # @since 3.18.0 - proposed
+  class CodeActionTagOptions
+    include JSON::Serializable
+
+    # The tags supported by the client.
+    @[JSON::Field(key: "valueSet")]
+    getter value_set : Array(CodeActionTag)
+
+    def initialize(
+      @value_set : Array(CodeActionTag)?,
     )
     end
   end
@@ -10843,6 +10980,26 @@ module LSProtocol
     end
   end
 
+  # Code action tags are extra annotations that tweak the behavior of a code action.
+  #
+  # @since 3.18.0 - proposed
+  enum CodeActionTag : UInt32
+    # Marks the code action as LLM-generated.
+    LlmGenerated = 1
+
+    def self.new(pull : JSON::PullParser) : self
+      self.from_json(pull)
+    end
+
+    def self.from_json(pull : JSON::PullParser) : self
+      self.from_value?(pull.read_int) || pull.raise "Unknown enum #{self} value: #{pull.int_value}"
+    end
+
+    def to_json(json : JSON::Builder)
+      json.number(value)
+    end
+  end
+
   enum TraceValue
     # Turn tracing off.
     Off
@@ -11296,6 +11453,49 @@ module LSProtocol
     end
   end
 
+  # Defines how values from a set of defaults and an individual item will be
+  # merged.
+  #
+  # @since 3.18.0
+  enum ApplyKind
+    # The value from the individual item (if provided and not `null`) will be
+    # used instead of the default.
+    Replace
+
+    # The value from the item will be merged with the default.
+    #
+    # The specific rules for mergeing values are defined against each field
+    # that supports merging.
+    Merge
+
+    def self.new(pull : JSON::PullParser) : self
+      self.from_json(pull)
+    end
+
+    def self.from_json(pull : JSON::PullParser) : self
+      case pull.kind
+      when .int?
+        from_value(pull.read_int)
+      when .string?
+        parse(pull.read_string)
+      else
+        {% if @type.annotation(Flags) %}
+          pull.raise "Expecting int, string or array in JSON for #{self.class}, not #{pull.kind}"
+        {% else %}
+          pull.raise "Expecting int or string in JSON for #{self.class}, not #{pull.kind}"
+        {% end %}
+      end
+    end
+
+    def to_json(builder : JSON::Builder)
+      builder.string self.to_s
+    end
+
+    def to_s(io : IO) : Nil
+      io << self.to_s
+    end
+  end
+
   # How a signature help was triggered.
   #
   # @since 3.15.0
@@ -11689,7 +11889,7 @@ module LSProtocol
 
   alias RegularExpressionEngineKind = String
 
-  class TextDocumentColorPresentationOptions
+  class ColorPresentationRequestOptions
     include JSON::Serializable
 
     @[JSON::Field(key: "workDoneProgress")]
@@ -11752,12 +11952,12 @@ module LSProtocol
     end
   end
 
-  alias TextDocumentImplementationResult = Array(DefinitionLink) | Definition | Nil
+  alias ImplementationResult = Array(DefinitionLink) | Definition | Nil
 
   # A request to resolve the implementation locations of a symbol at a given text
   # document position. The request's parameter is of type `TextDocumentPositionParams`
   # the response is of type `Definition` or a Thenable that resolves to such.
-  class TextDocumentImplementationRequest
+  class ImplementationRequest
     include JSON::Serializable
 
     # The request id.
@@ -11774,24 +11974,24 @@ module LSProtocol
     end
   end
 
-  class TextDocumentImplementationResponse
+  class ImplementationResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentImplementationResult
+    getter result : ImplementationResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentImplementationResult)
+    def initialize(@id : Int32 | String, @result : ImplementationResult?)
     end
   end
 
-  alias TextDocumentTypeDefinitionResult = Array(DefinitionLink) | Definition | Nil
+  alias TypeDefinitionResult = Array(DefinitionLink) | Definition | Nil
 
   # A request to resolve the type definition locations of a symbol at a given text
   # document position. The request's parameter is of type `TextDocumentPositionParams`
   # the response is of type `Definition` or a Thenable that resolves to such.
-  class TextDocumentTypeDefinitionRequest
+  class TypeDefinitionRequest
     include JSON::Serializable
 
     # The request id.
@@ -11808,22 +12008,22 @@ module LSProtocol
     end
   end
 
-  class TextDocumentTypeDefinitionResponse
+  class TypeDefinitionResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentTypeDefinitionResult
+    getter result : TypeDefinitionResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentTypeDefinitionResult)
+    def initialize(@id : Int32 | String, @result : TypeDefinitionResult?)
     end
   end
 
-  alias WorkspaceWorkspaceFoldersResult = Array(WorkspaceFolder) | Nil
+  alias WorkspaceFoldersResult = Array(WorkspaceFolder) | Nil
 
   # The `workspace/workspaceFolders` is sent from the server to the client to fetch the open workspace folders.
-  class WorkspaceWorkspaceFoldersRequest
+  class WorkspaceFoldersRequest
     include JSON::Serializable
 
     # The request id.
@@ -11840,19 +12040,19 @@ module LSProtocol
     end
   end
 
-  class WorkspaceWorkspaceFoldersResponse
+  class WorkspaceFoldersResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : WorkspaceWorkspaceFoldersResult
+    getter result : WorkspaceFoldersResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : WorkspaceWorkspaceFoldersResult)
+    def initialize(@id : Int32 | String, @result : WorkspaceFoldersResult?)
     end
   end
 
-  alias WorkspaceConfigurationResult = Array(LSPAny)
+  alias ConfigurationResult = Array(LSPAny)
 
   # The 'workspace/configuration' request is sent from the server to the client to fetch a certain
   # configuration setting.
@@ -11861,7 +12061,7 @@ module LSProtocol
   # event. If the server still needs to react to configuration changes (since the server caches the
   # result of `workspace/configuration` requests) the server should register for an empty configuration
   # change event and empty the cache if such an event is received.
-  class WorkspaceConfigurationRequest
+  class ConfigurationRequest
     include JSON::Serializable
 
     # The request id.
@@ -11878,25 +12078,25 @@ module LSProtocol
     end
   end
 
-  class WorkspaceConfigurationResponse
+  class ConfigurationResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : WorkspaceConfigurationResult
+    getter result : ConfigurationResult
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : WorkspaceConfigurationResult)
+    def initialize(@id : Int32 | String, @result : ConfigurationResult)
     end
   end
 
-  alias TextDocumentDocumentColorResult = Array(ColorInformation)
+  alias DocumentColorResult = Array(ColorInformation)
 
   # A request to list all color symbols found in a given text document. The request's
   # parameter is of type `DocumentColorParams` the
   # response is of type `Array(ColorInformation)` or a Thenable
   # that resolves to such.
-  class TextDocumentDocumentColorRequest
+  class DocumentColorRequest
     include JSON::Serializable
 
     # The request id.
@@ -11913,25 +12113,25 @@ module LSProtocol
     end
   end
 
-  class TextDocumentDocumentColorResponse
+  class DocumentColorResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentDocumentColorResult
+    getter result : DocumentColorResult
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentDocumentColorResult)
+    def initialize(@id : Int32 | String, @result : DocumentColorResult)
     end
   end
 
-  alias TextDocumentColorPresentationResult = Array(ColorPresentation)
+  alias ColorPresentationResult = Array(ColorPresentation)
 
   # A request to list all presentation for a color. The request's
   # parameter is of type `ColorPresentationParams` the
   # response is of type `Array(ColorInformation)` or a Thenable
   # that resolves to such.
-  class TextDocumentColorPresentationRequest
+  class ColorPresentationRequest
     include JSON::Serializable
 
     # The request id.
@@ -11948,25 +12148,25 @@ module LSProtocol
     end
   end
 
-  class TextDocumentColorPresentationResponse
+  class ColorPresentationResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentColorPresentationResult
+    getter result : ColorPresentationResult
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentColorPresentationResult)
+    def initialize(@id : Int32 | String, @result : ColorPresentationResult)
     end
   end
 
-  alias TextDocumentFoldingRangeResult = Array(FoldingRange) | Nil
+  alias FoldingRangeResult = Array(FoldingRange) | Nil
 
   # A request to provide folding ranges in a document. The request's
   # parameter is of type `FoldingRangeParams`, the
   # response is of type `FoldingRangeList` or a Thenable
   # that resolves to such.
-  class TextDocumentFoldingRangeRequest
+  class FoldingRangeRequest
     include JSON::Serializable
 
     # The request id.
@@ -11983,21 +12183,21 @@ module LSProtocol
     end
   end
 
-  class TextDocumentFoldingRangeResponse
+  class FoldingRangeResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentFoldingRangeResult
+    getter result : FoldingRangeResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentFoldingRangeResult)
+    def initialize(@id : Int32 | String, @result : FoldingRangeResult?)
     end
   end
 
   # @since 3.18.0
   # @proposed
-  class WorkspaceFoldingRangeRefreshRequest
+  class FoldingRangeRefreshRequest
     include JSON::Serializable
 
     # The request id.
@@ -12014,7 +12214,7 @@ module LSProtocol
     end
   end
 
-  class WorkspaceFoldingRangeRefreshResponse
+  class FoldingRangeRefreshResponse
     include JSON::Serializable
 
     # The request id.
@@ -12026,13 +12226,13 @@ module LSProtocol
     end
   end
 
-  alias TextDocumentDeclarationResult = Array(DeclarationLink) | Declaration | Nil
+  alias DeclarationResult = Array(DeclarationLink) | Declaration | Nil
 
   # A request to resolve the type definition locations of a symbol at a given text
   # document position. The request's parameter is of type `TextDocumentPositionParams`
   # the response is of type `Declaration` or a typed array of `DeclarationLink`
   # or a Thenable that resolves to such.
-  class TextDocumentDeclarationRequest
+  class DeclarationRequest
     include JSON::Serializable
 
     # The request id.
@@ -12049,25 +12249,25 @@ module LSProtocol
     end
   end
 
-  class TextDocumentDeclarationResponse
+  class DeclarationResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentDeclarationResult
+    getter result : DeclarationResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentDeclarationResult)
+    def initialize(@id : Int32 | String, @result : DeclarationResult?)
     end
   end
 
-  alias TextDocumentSelectionRangeResult = Array(SelectionRange) | Nil
+  alias SelectionRangeResult = Array(SelectionRange) | Nil
 
   # A request to provide selection ranges in a document. The request's
   # parameter is of type `SelectionRangeParams`, the
   # response is of type `Array(SelectionRange)` or a Thenable
   # that resolves to such.
-  class TextDocumentSelectionRangeRequest
+  class SelectionRangeRequest
     include JSON::Serializable
 
     # The request id.
@@ -12084,21 +12284,21 @@ module LSProtocol
     end
   end
 
-  class TextDocumentSelectionRangeResponse
+  class SelectionRangeResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentSelectionRangeResult
+    getter result : SelectionRangeResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentSelectionRangeResult)
+    def initialize(@id : Int32 | String, @result : SelectionRangeResult?)
     end
   end
 
   # The `window/workDoneProgress/create` request is sent from the server to the client to initiate progress
   # reporting from the server.
-  class WindowWorkDoneProgressCreateRequest
+  class WorkDoneProgressCreateRequest
     include JSON::Serializable
 
     # The request id.
@@ -12115,7 +12315,7 @@ module LSProtocol
     end
   end
 
-  class WindowWorkDoneProgressCreateResponse
+  class WorkDoneProgressCreateResponse
     include JSON::Serializable
 
     # The request id.
@@ -12127,13 +12327,13 @@ module LSProtocol
     end
   end
 
-  alias TextDocumentPrepareCallHierarchyResult = Array(CallHierarchyItem) | Nil
+  alias CallHierarchyPrepareResult = Array(CallHierarchyItem) | Nil
 
   # A request to result a `CallHierarchyItem` in a document at a given position.
   # Can be used as an input to an incoming or outgoing call hierarchy.
   #
   # @since 3.16.0
-  class TextDocumentPrepareCallHierarchyRequest
+  class CallHierarchyPrepareRequest
     include JSON::Serializable
 
     # The request id.
@@ -12150,15 +12350,15 @@ module LSProtocol
     end
   end
 
-  class TextDocumentPrepareCallHierarchyResponse
+  class CallHierarchyPrepareResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentPrepareCallHierarchyResult
+    getter result : CallHierarchyPrepareResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentPrepareCallHierarchyResult)
+    def initialize(@id : Int32 | String, @result : CallHierarchyPrepareResult?)
     end
   end
 
@@ -12189,10 +12389,10 @@ module LSProtocol
 
     # The request id.
     getter id : Int32 | String?
-    getter result : CallHierarchyIncomingCallsResult
+    getter result : CallHierarchyIncomingCallsResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : CallHierarchyIncomingCallsResult)
+    def initialize(@id : Int32 | String, @result : CallHierarchyIncomingCallsResult?)
     end
   end
 
@@ -12223,17 +12423,17 @@ module LSProtocol
 
     # The request id.
     getter id : Int32 | String?
-    getter result : CallHierarchyOutgoingCallsResult
+    getter result : CallHierarchyOutgoingCallsResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : CallHierarchyOutgoingCallsResult)
+    def initialize(@id : Int32 | String, @result : CallHierarchyOutgoingCallsResult?)
     end
   end
 
-  alias TextDocumentSemanticTokensFullResult = Nil | SemanticTokens
+  alias SemanticTokensResult = Nil | SemanticTokens
 
   # @since 3.16.0
-  class TextDocumentSemanticTokensFullRequest
+  class SemanticTokensRequest
     include JSON::Serializable
 
     # The request id.
@@ -12250,22 +12450,22 @@ module LSProtocol
     end
   end
 
-  class TextDocumentSemanticTokensFullResponse
+  class SemanticTokensResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentSemanticTokensFullResult
+    getter result : SemanticTokensResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentSemanticTokensFullResult)
+    def initialize(@id : Int32 | String, @result : SemanticTokensResult?)
     end
   end
 
-  alias TextDocumentSemanticTokensFullDeltaResult = Nil | SemanticTokens | SemanticTokensDelta
+  alias SemanticTokensDeltaResult = Nil | SemanticTokens | SemanticTokensDelta
 
   # @since 3.16.0
-  class TextDocumentSemanticTokensFullDeltaRequest
+  class SemanticTokensDeltaRequest
     include JSON::Serializable
 
     # The request id.
@@ -12282,22 +12482,22 @@ module LSProtocol
     end
   end
 
-  class TextDocumentSemanticTokensFullDeltaResponse
+  class SemanticTokensDeltaResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentSemanticTokensFullDeltaResult
+    getter result : SemanticTokensDeltaResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentSemanticTokensFullDeltaResult)
+    def initialize(@id : Int32 | String, @result : SemanticTokensDeltaResult?)
     end
   end
 
-  alias TextDocumentSemanticTokensRangeResult = Nil | SemanticTokens
+  alias SemanticTokensRangeResult = Nil | SemanticTokens
 
   # @since 3.16.0
-  class TextDocumentSemanticTokensRangeRequest
+  class SemanticTokensRangeRequest
     include JSON::Serializable
 
     # The request id.
@@ -12314,20 +12514,20 @@ module LSProtocol
     end
   end
 
-  class TextDocumentSemanticTokensRangeResponse
+  class SemanticTokensRangeResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentSemanticTokensRangeResult
+    getter result : SemanticTokensRangeResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentSemanticTokensRangeResult)
+    def initialize(@id : Int32 | String, @result : SemanticTokensRangeResult?)
     end
   end
 
   # @since 3.16.0
-  class WorkspaceSemanticTokensRefreshRequest
+  class SemanticTokensRefreshRequest
     include JSON::Serializable
 
     # The request id.
@@ -12344,7 +12544,7 @@ module LSProtocol
     end
   end
 
-  class WorkspaceSemanticTokensRefreshResponse
+  class SemanticTokensRefreshResponse
     include JSON::Serializable
 
     # The request id.
@@ -12362,7 +12562,7 @@ module LSProtocol
   # will very likely open the URI in a WEB browser.
   #
   # @since 3.16.0
-  class WindowShowDocumentRequest
+  class ShowDocumentRequest
     include JSON::Serializable
 
     # The request id.
@@ -12379,7 +12579,7 @@ module LSProtocol
     end
   end
 
-  class WindowShowDocumentResponse
+  class ShowDocumentResponse
     include JSON::Serializable
 
     # The request id.
@@ -12391,12 +12591,12 @@ module LSProtocol
     end
   end
 
-  alias TextDocumentLinkedEditingRangeResult = LinkedEditingRanges | Nil
+  alias LinkedEditingRangeResult = LinkedEditingRanges | Nil
 
   # A request to provide ranges that can be edited together.
   #
   # @since 3.16.0
-  class TextDocumentLinkedEditingRangeRequest
+  class LinkedEditingRangeRequest
     include JSON::Serializable
 
     # The request id.
@@ -12413,19 +12613,19 @@ module LSProtocol
     end
   end
 
-  class TextDocumentLinkedEditingRangeResponse
+  class LinkedEditingRangeResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentLinkedEditingRangeResult
+    getter result : LinkedEditingRangeResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentLinkedEditingRangeResult)
+    def initialize(@id : Int32 | String, @result : LinkedEditingRangeResult?)
     end
   end
 
-  alias WorkspaceWillCreateFilesResult = Nil | WorkspaceEdit
+  alias WillCreateFilesResult = Nil | WorkspaceEdit
 
   # The will create files request is sent from the client to the server before files are actually
   # created as long as the creation is triggered from within the client.
@@ -12435,7 +12635,7 @@ module LSProtocol
   # to be created.
   #
   # @since 3.16.0
-  class WorkspaceWillCreateFilesRequest
+  class WillCreateFilesRequest
     include JSON::Serializable
 
     # The request id.
@@ -12452,25 +12652,25 @@ module LSProtocol
     end
   end
 
-  class WorkspaceWillCreateFilesResponse
+  class WillCreateFilesResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : WorkspaceWillCreateFilesResult
+    getter result : WillCreateFilesResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : WorkspaceWillCreateFilesResult)
+    def initialize(@id : Int32 | String, @result : WillCreateFilesResult?)
     end
   end
 
-  alias WorkspaceWillRenameFilesResult = Nil | WorkspaceEdit
+  alias WillRenameFilesResult = Nil | WorkspaceEdit
 
   # The will rename files request is sent from the client to the server before files are actually
   # renamed as long as the rename is triggered from within the client.
   #
   # @since 3.16.0
-  class WorkspaceWillRenameFilesRequest
+  class WillRenameFilesRequest
     include JSON::Serializable
 
     # The request id.
@@ -12487,25 +12687,25 @@ module LSProtocol
     end
   end
 
-  class WorkspaceWillRenameFilesResponse
+  class WillRenameFilesResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : WorkspaceWillRenameFilesResult
+    getter result : WillRenameFilesResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : WorkspaceWillRenameFilesResult)
+    def initialize(@id : Int32 | String, @result : WillRenameFilesResult?)
     end
   end
 
-  alias WorkspaceWillDeleteFilesResult = Nil | WorkspaceEdit
+  alias WillDeleteFilesResult = Nil | WorkspaceEdit
 
   # The did delete files notification is sent from the client to the server when
   # files were deleted from within the client.
   #
   # @since 3.16.0
-  class WorkspaceWillDeleteFilesRequest
+  class WillDeleteFilesRequest
     include JSON::Serializable
 
     # The request id.
@@ -12522,24 +12722,24 @@ module LSProtocol
     end
   end
 
-  class WorkspaceWillDeleteFilesResponse
+  class WillDeleteFilesResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : WorkspaceWillDeleteFilesResult
+    getter result : WillDeleteFilesResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : WorkspaceWillDeleteFilesResult)
+    def initialize(@id : Int32 | String, @result : WillDeleteFilesResult?)
     end
   end
 
-  alias TextDocumentMonikerResult = Array(Moniker) | Nil
+  alias MonikerResult = Array(Moniker) | Nil
 
   # A request to get the moniker of a symbol at a given text document position.
   # The request parameter is of type `TextDocumentPositionParams`.
   # The response is of type `Array(Moniker)` or `null`.
-  class TextDocumentMonikerRequest
+  class MonikerRequest
     include JSON::Serializable
 
     # The request id.
@@ -12556,25 +12756,25 @@ module LSProtocol
     end
   end
 
-  class TextDocumentMonikerResponse
+  class MonikerResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentMonikerResult
+    getter result : MonikerResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentMonikerResult)
+    def initialize(@id : Int32 | String, @result : MonikerResult?)
     end
   end
 
-  alias TextDocumentPrepareTypeHierarchyResult = Array(TypeHierarchyItem) | Nil
+  alias TypeHierarchyPrepareResult = Array(TypeHierarchyItem) | Nil
 
   # A request to result a `TypeHierarchyItem` in a document at a given position.
   # Can be used as an input to a subtypes or supertypes type hierarchy.
   #
   # @since 3.17.0
-  class TextDocumentPrepareTypeHierarchyRequest
+  class TypeHierarchyPrepareRequest
     include JSON::Serializable
 
     # The request id.
@@ -12591,15 +12791,15 @@ module LSProtocol
     end
   end
 
-  class TextDocumentPrepareTypeHierarchyResponse
+  class TypeHierarchyPrepareResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentPrepareTypeHierarchyResult
+    getter result : TypeHierarchyPrepareResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentPrepareTypeHierarchyResult)
+    def initialize(@id : Int32 | String, @result : TypeHierarchyPrepareResult?)
     end
   end
 
@@ -12630,10 +12830,10 @@ module LSProtocol
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TypeHierarchySupertypesResult
+    getter result : TypeHierarchySupertypesResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TypeHierarchySupertypesResult)
+    def initialize(@id : Int32 | String, @result : TypeHierarchySupertypesResult?)
     end
   end
 
@@ -12664,21 +12864,21 @@ module LSProtocol
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TypeHierarchySubtypesResult
+    getter result : TypeHierarchySubtypesResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TypeHierarchySubtypesResult)
+    def initialize(@id : Int32 | String, @result : TypeHierarchySubtypesResult?)
     end
   end
 
-  alias TextDocumentInlineValueResult = Array(InlineValue) | Nil
+  alias InlineValueResult = Array(InlineValue) | Nil
 
   # A request to provide inline values in a document. The request's parameter is of
   # type `InlineValueParams`, the response is of type
   # `Array(InlineValue)` or a Thenable that resolves to such.
   #
   # @since 3.17.0
-  class TextDocumentInlineValueRequest
+  class InlineValueRequest
     include JSON::Serializable
 
     # The request id.
@@ -12695,20 +12895,20 @@ module LSProtocol
     end
   end
 
-  class TextDocumentInlineValueResponse
+  class InlineValueResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentInlineValueResult
+    getter result : InlineValueResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentInlineValueResult)
+    def initialize(@id : Int32 | String, @result : InlineValueResult?)
     end
   end
 
   # @since 3.17.0
-  class WorkspaceInlineValueRefreshRequest
+  class InlineValueRefreshRequest
     include JSON::Serializable
 
     # The request id.
@@ -12725,7 +12925,7 @@ module LSProtocol
     end
   end
 
-  class WorkspaceInlineValueRefreshResponse
+  class InlineValueRefreshResponse
     include JSON::Serializable
 
     # The request id.
@@ -12737,14 +12937,14 @@ module LSProtocol
     end
   end
 
-  alias TextDocumentInlayHintResult = Array(InlayHint) | Nil
+  alias InlayHintResult = Array(InlayHint) | Nil
 
   # A request to provide inlay hints in a document. The request's parameter is of
   # type `InlayHintsParams`, the response is of type
   # `Array(InlayHint)` or a Thenable that resolves to such.
   #
   # @since 3.17.0
-  class TextDocumentInlayHintRequest
+  class InlayHintRequest
     include JSON::Serializable
 
     # The request id.
@@ -12761,15 +12961,15 @@ module LSProtocol
     end
   end
 
-  class TextDocumentInlayHintResponse
+  class InlayHintResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentInlayHintResult
+    getter result : InlayHintResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentInlayHintResult)
+    def initialize(@id : Int32 | String, @result : InlayHintResult?)
     end
   end
 
@@ -12808,7 +13008,7 @@ module LSProtocol
   end
 
   # @since 3.17.0
-  class WorkspaceInlayHintRefreshRequest
+  class InlayHintRefreshRequest
     include JSON::Serializable
 
     # The request id.
@@ -12825,7 +13025,7 @@ module LSProtocol
     end
   end
 
-  class WorkspaceInlayHintRefreshResponse
+  class InlayHintRefreshResponse
     include JSON::Serializable
 
     # The request id.
@@ -12840,7 +13040,7 @@ module LSProtocol
   # The document diagnostic request definition.
   #
   # @since 3.17.0
-  class TextDocumentDiagnosticRequest
+  class DocumentDiagnosticRequest
     include JSON::Serializable
 
     # The request id.
@@ -12857,7 +13057,7 @@ module LSProtocol
     end
   end
 
-  class TextDocumentDiagnosticResponse
+  class DocumentDiagnosticResponse
     include JSON::Serializable
 
     # The request id.
@@ -12904,7 +13104,7 @@ module LSProtocol
   # The diagnostic refresh request definition.
   #
   # @since 3.17.0
-  class WorkspaceDiagnosticRefreshRequest
+  class DiagnosticRefreshRequest
     include JSON::Serializable
 
     # The request id.
@@ -12921,7 +13121,7 @@ module LSProtocol
     end
   end
 
-  class WorkspaceDiagnosticRefreshResponse
+  class DiagnosticRefreshResponse
     include JSON::Serializable
 
     # The request id.
@@ -12933,7 +13133,7 @@ module LSProtocol
     end
   end
 
-  alias TextDocumentInlineCompletionResult = Array(InlineCompletionItem) | InlineCompletionList | Nil
+  alias InlineCompletionResult = Array(InlineCompletionItem) | InlineCompletionList | Nil
 
   # A request to provide inline completions in a document. The request's parameter is of
   # type `InlineCompletionParams`, the response is of type
@@ -12941,7 +13141,7 @@ module LSProtocol
   #
   # @since 3.18.0
   # @proposed
-  class TextDocumentInlineCompletionRequest
+  class InlineCompletionRequest
     include JSON::Serializable
 
     # The request id.
@@ -12958,15 +13158,15 @@ module LSProtocol
     end
   end
 
-  class TextDocumentInlineCompletionResponse
+  class InlineCompletionResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentInlineCompletionResult
+    getter result : InlineCompletionResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentInlineCompletionResult)
+    def initialize(@id : Int32 | String, @result : InlineCompletionResult?)
     end
   end
 
@@ -12975,7 +13175,7 @@ module LSProtocol
   #
   # @since 3.18.0
   # @proposed
-  class WorkspaceTextDocumentContentRequest
+  class TextDocumentContentRequest
     include JSON::Serializable
 
     # The request id.
@@ -12992,7 +13192,7 @@ module LSProtocol
     end
   end
 
-  class WorkspaceTextDocumentContentResponse
+  class TextDocumentContentResponse
     include JSON::Serializable
 
     # The request id.
@@ -13009,7 +13209,7 @@ module LSProtocol
   #
   # @since 3.18.0
   # @proposed
-  class WorkspaceTextDocumentContentRefreshRequest
+  class TextDocumentContentRefreshRequest
     include JSON::Serializable
 
     # The request id.
@@ -13026,7 +13226,7 @@ module LSProtocol
     end
   end
 
-  class WorkspaceTextDocumentContentRefreshResponse
+  class TextDocumentContentRefreshResponse
     include JSON::Serializable
 
     # The request id.
@@ -13040,7 +13240,7 @@ module LSProtocol
 
   # The `client/registerCapability` request is sent from the server to the client to register a new capability
   # handler on the client side.
-  class ClientRegisterCapabilityRequest
+  class RegistrationRequest
     include JSON::Serializable
 
     # The request id.
@@ -13057,7 +13257,7 @@ module LSProtocol
     end
   end
 
-  class ClientRegisterCapabilityResponse
+  class RegistrationResponse
     include JSON::Serializable
 
     # The request id.
@@ -13071,7 +13271,7 @@ module LSProtocol
 
   # The `client/unregisterCapability` request is sent from the server to the client to unregister a previously registered capability
   # handler on the client side.
-  class ClientUnregisterCapabilityRequest
+  class UnregistrationRequest
     include JSON::Serializable
 
     # The request id.
@@ -13088,7 +13288,7 @@ module LSProtocol
     end
   end
 
-  class ClientUnregisterCapabilityResponse
+  class UnregistrationResponse
     include JSON::Serializable
 
     # The request id.
@@ -13167,11 +13367,11 @@ module LSProtocol
     end
   end
 
-  alias WindowShowMessageRequestResult = MessageActionItem | Nil
+  alias ShowMessageResult = MessageActionItem | Nil
 
   # The show message request is sent from the server to the client to show a message
   # and a set of options actions to the user.
-  class WindowShowMessageRequestRequest
+  class ShowMessageRequest
     include JSON::Serializable
 
     # The request id.
@@ -13188,19 +13388,19 @@ module LSProtocol
     end
   end
 
-  class WindowShowMessageRequestResponse
+  class ShowMessageResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : WindowShowMessageRequestResult
+    getter result : ShowMessageResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : WindowShowMessageRequestResult)
+    def initialize(@id : Int32 | String, @result : ShowMessageResult?)
     end
   end
 
-  alias TextDocumentWillSaveWaitUntilResult = Array(TextEdit) | Nil
+  alias WillSaveTextDocumentWaitUntilResult = Array(TextEdit) | Nil
 
   # A document will save request is sent from the client to the server before
   # the document is actually saved. The request can return an array of TextEdits
@@ -13208,7 +13408,7 @@ module LSProtocol
   # clients might drop results if computing the text edits took too long or if a
   # server constantly fails on this request. This is done to keep the save fast and
   # reliable.
-  class TextDocumentWillSaveWaitUntilRequest
+  class WillSaveTextDocumentWaitUntilRequest
     include JSON::Serializable
 
     # The request id.
@@ -13225,19 +13425,19 @@ module LSProtocol
     end
   end
 
-  class TextDocumentWillSaveWaitUntilResponse
+  class WillSaveTextDocumentWaitUntilResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentWillSaveWaitUntilResult
+    getter result : WillSaveTextDocumentWaitUntilResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentWillSaveWaitUntilResult)
+    def initialize(@id : Int32 | String, @result : WillSaveTextDocumentWaitUntilResult?)
     end
   end
 
-  alias TextDocumentCompletionResult = Array(CompletionItem) | CompletionList | Nil
+  alias CompletionResult = Array(CompletionItem) | CompletionList | Nil
 
   # Request to request completion at a given text document position. The request's
   # parameter is of type `TextDocumentPosition` the response
@@ -13248,7 +13448,7 @@ module LSProtocol
   # and `CompletionItem#documentation` properties to the `completionItem/resolve`
   # request. However, properties that are needed for the initial sorting and filtering, like `sortText`,
   # `filterText`, `insertText`, and `textEdit`, must not be changed during resolve.
-  class TextDocumentCompletionRequest
+  class CompletionRequest
     include JSON::Serializable
 
     # The request id.
@@ -13265,22 +13465,22 @@ module LSProtocol
     end
   end
 
-  class TextDocumentCompletionResponse
+  class CompletionResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentCompletionResult
+    getter result : CompletionResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentCompletionResult)
+    def initialize(@id : Int32 | String, @result : CompletionResult?)
     end
   end
 
   # Request to resolve additional information for a given completion item.The request's
   # parameter is of type `CompletionItem` the response
   # is of type `CompletionItem` or a Thenable that resolves to such.
-  class CompletionItemResolveRequest
+  class CompletionResolveRequest
     include JSON::Serializable
 
     # The request id.
@@ -13297,7 +13497,7 @@ module LSProtocol
     end
   end
 
-  class CompletionItemResolveResponse
+  class CompletionResolveResponse
     include JSON::Serializable
 
     # The request id.
@@ -13309,12 +13509,12 @@ module LSProtocol
     end
   end
 
-  alias TextDocumentHoverResult = Hover | Nil
+  alias HoverResult = Hover | Nil
 
   # Request to request hover information at a given text document position. The request's
   # parameter is of type `TextDocumentPosition` the response is of
   # type `Hover` or a Thenable that resolves to such.
-  class TextDocumentHoverRequest
+  class HoverRequest
     include JSON::Serializable
 
     # The request id.
@@ -13331,22 +13531,22 @@ module LSProtocol
     end
   end
 
-  class TextDocumentHoverResponse
+  class HoverResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentHoverResult
+    getter result : HoverResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentHoverResult)
+    def initialize(@id : Int32 | String, @result : HoverResult?)
     end
   end
 
-  alias TextDocumentSignatureHelpResult = Nil | SignatureHelp
+  alias SignatureHelpResult = Nil | SignatureHelp
 
   #
-  class TextDocumentSignatureHelpRequest
+  class SignatureHelpRequest
     include JSON::Serializable
 
     # The request id.
@@ -13363,25 +13563,25 @@ module LSProtocol
     end
   end
 
-  class TextDocumentSignatureHelpResponse
+  class SignatureHelpResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentSignatureHelpResult
+    getter result : SignatureHelpResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentSignatureHelpResult)
+    def initialize(@id : Int32 | String, @result : SignatureHelpResult?)
     end
   end
 
-  alias TextDocumentDefinitionResult = Array(DefinitionLink) | Definition | Nil
+  alias DefinitionResult = Array(DefinitionLink) | Definition | Nil
 
   # A request to resolve the definition location of a symbol at a given text
   # document position. The request's parameter is of type `TextDocumentPosition`
   # the response is of either type `Definition` or a typed array of
   # `DefinitionLink` or a Thenable that resolves to such.
-  class TextDocumentDefinitionRequest
+  class DefinitionRequest
     include JSON::Serializable
 
     # The request id.
@@ -13398,25 +13598,25 @@ module LSProtocol
     end
   end
 
-  class TextDocumentDefinitionResponse
+  class DefinitionResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentDefinitionResult
+    getter result : DefinitionResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentDefinitionResult)
+    def initialize(@id : Int32 | String, @result : DefinitionResult?)
     end
   end
 
-  alias TextDocumentReferencesResult = Array(Location) | Nil
+  alias ReferencesResult = Array(Location) | Nil
 
   # A request to resolve project-wide references for the symbol denoted
   # by the given text document position. The request's parameter is of
   # type `ReferenceParams` the response is of type
   # `Array(Location)` or a Thenable that resolves to such.
-  class TextDocumentReferencesRequest
+  class ReferencesRequest
     include JSON::Serializable
 
     # The request id.
@@ -13433,25 +13633,25 @@ module LSProtocol
     end
   end
 
-  class TextDocumentReferencesResponse
+  class ReferencesResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentReferencesResult
+    getter result : ReferencesResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentReferencesResult)
+    def initialize(@id : Int32 | String, @result : ReferencesResult?)
     end
   end
 
-  alias TextDocumentDocumentHighlightResult = Array(DocumentHighlight) | Nil
+  alias DocumentHighlightResult = Array(DocumentHighlight) | Nil
 
   # Request to resolve a `DocumentHighlight` for a given
   # text document position. The request's parameter is of type `TextDocumentPosition`
   # the request response is an array of type `DocumentHighlight`
   # or a Thenable that resolves to such.
-  class TextDocumentDocumentHighlightRequest
+  class DocumentHighlightRequest
     include JSON::Serializable
 
     # The request id.
@@ -13468,25 +13668,25 @@ module LSProtocol
     end
   end
 
-  class TextDocumentDocumentHighlightResponse
+  class DocumentHighlightResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentDocumentHighlightResult
+    getter result : DocumentHighlightResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentDocumentHighlightResult)
+    def initialize(@id : Int32 | String, @result : DocumentHighlightResult?)
     end
   end
 
-  alias TextDocumentDocumentSymbolResult = Array(DocumentSymbol) | Array(SymbolInformation) | Nil
+  alias DocumentSymbolResult = Array(DocumentSymbol) | Array(SymbolInformation) | Nil
 
   # A request to list all symbols found in a given text document. The request's
   # parameter is of type `TextDocumentIdentifier` the
   # response is of type `Array(SymbolInformation)` or a Thenable
   # that resolves to such.
-  class TextDocumentDocumentSymbolRequest
+  class DocumentSymbolRequest
     include JSON::Serializable
 
     # The request id.
@@ -13503,22 +13703,22 @@ module LSProtocol
     end
   end
 
-  class TextDocumentDocumentSymbolResponse
+  class DocumentSymbolResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentDocumentSymbolResult
+    getter result : DocumentSymbolResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentDocumentSymbolResult)
+    def initialize(@id : Int32 | String, @result : DocumentSymbolResult?)
     end
   end
 
-  alias TextDocumentCodeActionResult = Array(CodeAction | Command) | Nil
+  alias CodeActionResult = Array(CodeAction | Command) | Nil
 
   # A request to provide commands for the given text document and range.
-  class TextDocumentCodeActionRequest
+  class CodeActionRequest
     include JSON::Serializable
 
     # The request id.
@@ -13535,15 +13735,15 @@ module LSProtocol
     end
   end
 
-  class TextDocumentCodeActionResponse
+  class CodeActionResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentCodeActionResult
+    getter result : CodeActionResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentCodeActionResult)
+    def initialize(@id : Int32 | String, @result : CodeActionResult?)
     end
   end
 
@@ -13612,10 +13812,10 @@ module LSProtocol
 
     # The request id.
     getter id : Int32 | String?
-    getter result : WorkspaceSymbolResult
+    getter result : WorkspaceSymbolResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : WorkspaceSymbolResult)
+    def initialize(@id : Int32 | String, @result : WorkspaceSymbolResult?)
     end
   end
 
@@ -13652,10 +13852,10 @@ module LSProtocol
     end
   end
 
-  alias TextDocumentCodeLensResult = Array(CodeLens) | Nil
+  alias CodeLensResult = Array(CodeLens) | Nil
 
   # A request to provide code lens for the given text document.
-  class TextDocumentCodeLensRequest
+  class CodeLensRequest
     include JSON::Serializable
 
     # The request id.
@@ -13672,15 +13872,15 @@ module LSProtocol
     end
   end
 
-  class TextDocumentCodeLensResponse
+  class CodeLensResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentCodeLensResult
+    getter result : CodeLensResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentCodeLensResult)
+    def initialize(@id : Int32 | String, @result : CodeLensResult?)
     end
   end
 
@@ -13717,7 +13917,7 @@ module LSProtocol
   # A request to refresh all code actions
   #
   # @since 3.16.0
-  class WorkspaceCodeLensRefreshRequest
+  class CodeLensRefreshRequest
     include JSON::Serializable
 
     # The request id.
@@ -13734,7 +13934,7 @@ module LSProtocol
     end
   end
 
-  class WorkspaceCodeLensRefreshResponse
+  class CodeLensRefreshResponse
     include JSON::Serializable
 
     # The request id.
@@ -13746,10 +13946,10 @@ module LSProtocol
     end
   end
 
-  alias TextDocumentDocumentLinkResult = Array(DocumentLink) | Nil
+  alias DocumentLinkResult = Array(DocumentLink) | Nil
 
   # A request to provide document links
-  class TextDocumentDocumentLinkRequest
+  class DocumentLinkRequest
     include JSON::Serializable
 
     # The request id.
@@ -13766,15 +13966,15 @@ module LSProtocol
     end
   end
 
-  class TextDocumentDocumentLinkResponse
+  class DocumentLinkResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentDocumentLinkResult
+    getter result : DocumentLinkResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentDocumentLinkResult)
+    def initialize(@id : Int32 | String, @result : DocumentLinkResult?)
     end
   end
 
@@ -13810,10 +14010,10 @@ module LSProtocol
     end
   end
 
-  alias TextDocumentFormattingResult = Array(TextEdit) | Nil
+  alias DocumentFormattingResult = Array(TextEdit) | Nil
 
   # A request to format a whole document.
-  class TextDocumentFormattingRequest
+  class DocumentFormattingRequest
     include JSON::Serializable
 
     # The request id.
@@ -13830,22 +14030,22 @@ module LSProtocol
     end
   end
 
-  class TextDocumentFormattingResponse
+  class DocumentFormattingResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentFormattingResult
+    getter result : DocumentFormattingResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentFormattingResult)
+    def initialize(@id : Int32 | String, @result : DocumentFormattingResult?)
     end
   end
 
-  alias TextDocumentRangeFormattingResult = Array(TextEdit) | Nil
+  alias DocumentRangeFormattingResult = Array(TextEdit) | Nil
 
   # A request to format a range in a document.
-  class TextDocumentRangeFormattingRequest
+  class DocumentRangeFormattingRequest
     include JSON::Serializable
 
     # The request id.
@@ -13862,25 +14062,25 @@ module LSProtocol
     end
   end
 
-  class TextDocumentRangeFormattingResponse
+  class DocumentRangeFormattingResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentRangeFormattingResult
+    getter result : DocumentRangeFormattingResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentRangeFormattingResult)
+    def initialize(@id : Int32 | String, @result : DocumentRangeFormattingResult?)
     end
   end
 
-  alias TextDocumentRangesFormattingResult = Array(TextEdit) | Nil
+  alias DocumentRangesFormattingResult = Array(TextEdit) | Nil
 
   # A request to format ranges in a document.
   #
   # @since 3.18.0
   # @proposed
-  class TextDocumentRangesFormattingRequest
+  class DocumentRangesFormattingRequest
     include JSON::Serializable
 
     # The request id.
@@ -13897,22 +14097,22 @@ module LSProtocol
     end
   end
 
-  class TextDocumentRangesFormattingResponse
+  class DocumentRangesFormattingResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentRangesFormattingResult
+    getter result : DocumentRangesFormattingResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentRangesFormattingResult)
+    def initialize(@id : Int32 | String, @result : DocumentRangesFormattingResult?)
     end
   end
 
-  alias TextDocumentOnTypeFormattingResult = Array(TextEdit) | Nil
+  alias DocumentOnTypeFormattingResult = Array(TextEdit) | Nil
 
   # A request to format a document on type.
-  class TextDocumentOnTypeFormattingRequest
+  class DocumentOnTypeFormattingRequest
     include JSON::Serializable
 
     # The request id.
@@ -13929,22 +14129,22 @@ module LSProtocol
     end
   end
 
-  class TextDocumentOnTypeFormattingResponse
+  class DocumentOnTypeFormattingResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentOnTypeFormattingResult
+    getter result : DocumentOnTypeFormattingResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentOnTypeFormattingResult)
+    def initialize(@id : Int32 | String, @result : DocumentOnTypeFormattingResult?)
     end
   end
 
-  alias TextDocumentRenameResult = Nil | WorkspaceEdit
+  alias RenameResult = Nil | WorkspaceEdit
 
   # A request to rename a symbol.
-  class TextDocumentRenameRequest
+  class RenameRequest
     include JSON::Serializable
 
     # The request id.
@@ -13961,24 +14161,22 @@ module LSProtocol
     end
   end
 
-  class TextDocumentRenameResponse
+  class RenameResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentRenameResult
+    getter result : RenameResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentRenameResult)
+    def initialize(@id : Int32 | String, @result : RenameResult?)
     end
   end
-
-  alias TextDocumentPrepareRenameResult = Nil | PrepareRenameResult
 
   # A request to test and perform the setup necessary for a rename.
   #
   # @since 3.16 - support for default behavior
-  class TextDocumentPrepareRenameRequest
+  class PrepareRenameRequest
     include JSON::Serializable
 
     # The request id.
@@ -13995,23 +14193,23 @@ module LSProtocol
     end
   end
 
-  class TextDocumentPrepareRenameResponse
+  class PrepareRenameResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : TextDocumentPrepareRenameResult
+    getter result : PrepareRenameResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : TextDocumentPrepareRenameResult)
+    def initialize(@id : Int32 | String, @result : PrepareRenameResult?)
     end
   end
 
-  alias WorkspaceExecuteCommandResult = LSPAny | Nil
+  alias ExecuteCommandResult = LSPAny | Nil
 
   # A request send from the client to the server to execute a command. The request might return
   # a workspace edit which the client will apply to the workspace.
-  class WorkspaceExecuteCommandRequest
+  class ExecuteCommandRequest
     include JSON::Serializable
 
     # The request id.
@@ -14028,20 +14226,20 @@ module LSProtocol
     end
   end
 
-  class WorkspaceExecuteCommandResponse
+  class ExecuteCommandResponse
     include JSON::Serializable
 
     # The request id.
     getter id : Int32 | String?
-    getter result : WorkspaceExecuteCommandResult
+    getter result : ExecuteCommandResult?
     getter jsonrpc : String = "2.0"
 
-    def initialize(@id : Int32 | String, @result : WorkspaceExecuteCommandResult)
+    def initialize(@id : Int32 | String, @result : ExecuteCommandResult?)
     end
   end
 
   # A request sent from the server to the client to modified certain resources.
-  class WorkspaceApplyEditRequest
+  class ApplyWorkspaceEditRequest
     include JSON::Serializable
 
     # The request id.
@@ -14058,7 +14256,7 @@ module LSProtocol
     end
   end
 
-  class WorkspaceApplyEditResponse
+  class ApplyWorkspaceEditResponse
     include JSON::Serializable
 
     # The request id.
@@ -14072,7 +14270,7 @@ module LSProtocol
 
   # The `workspace/didChangeWorkspaceFolders` notification is sent from the client to the server when the workspace
   # folder configuration changes.
-  class WorkspaceDidChangeWorkspaceFoldersNotification
+  class DidChangeWorkspaceFoldersNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14087,7 +14285,7 @@ module LSProtocol
 
   # The `window/workDoneProgress/cancel` notification is sent from  the client to the server to cancel a progress
   # initiated on the server side.
-  class WindowWorkDoneProgressCancelNotification
+  class WorkDoneProgressCancelNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14104,7 +14302,7 @@ module LSProtocol
   # files were created from within the client.
   #
   # @since 3.16.0
-  class WorkspaceDidCreateFilesNotification
+  class DidCreateFilesNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14121,7 +14319,7 @@ module LSProtocol
   # files were renamed from within the client.
   #
   # @since 3.16.0
-  class WorkspaceDidRenameFilesNotification
+  class DidRenameFilesNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14138,7 +14336,7 @@ module LSProtocol
   # deleted as long as the deletion is triggered from within the client.
   #
   # @since 3.16.0
-  class WorkspaceDidDeleteFilesNotification
+  class DidDeleteFilesNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14154,7 +14352,7 @@ module LSProtocol
   # A notification sent when a notebook opens.
   #
   # @since 3.17.0
-  class NotebookDocumentDidOpenNotification
+  class DidOpenNotebookDocumentNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14168,7 +14366,7 @@ module LSProtocol
   end
 
   #
-  class NotebookDocumentDidChangeNotification
+  class DidChangeNotebookDocumentNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14184,7 +14382,7 @@ module LSProtocol
   # A notification sent when a notebook document is saved.
   #
   # @since 3.17.0
-  class NotebookDocumentDidSaveNotification
+  class DidSaveNotebookDocumentNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14200,7 +14398,7 @@ module LSProtocol
   # A notification sent when a notebook closes.
   #
   # @since 3.17.0
-  class NotebookDocumentDidCloseNotification
+  class DidCloseNotebookDocumentNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14247,7 +14445,7 @@ module LSProtocol
   # The configuration change notification is sent from the client to the server
   # when the client's configuration has changed. The notification contains
   # the changed configuration as defined by the language client.
-  class WorkspaceDidChangeConfigurationNotification
+  class DidChangeConfigurationNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14262,7 +14460,7 @@ module LSProtocol
 
   # The show message notification is sent from a server to a client to ask
   # the client to display a particular message in the user interface.
-  class WindowShowMessageNotification
+  class ShowMessageNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14277,7 +14475,7 @@ module LSProtocol
 
   # The log message notification is sent from the server to the client to ask
   # the client to log a particular message.
-  class WindowLogMessageNotification
+  class LogMessageNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14313,7 +14511,7 @@ module LSProtocol
   # be sent more than once without a corresponding close notification send before.
   # This means open and close notification must be balanced and the max open count
   # is one.
-  class TextDocumentDidOpenNotification
+  class DidOpenTextDocumentNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14328,7 +14526,7 @@ module LSProtocol
 
   # The document change notification is sent from the client to the server to signal
   # changes to a text document.
-  class TextDocumentDidChangeNotification
+  class DidChangeTextDocumentNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14348,7 +14546,7 @@ module LSProtocol
   # is about managing the document's content. Receiving a close notification
   # doesn't mean that the document was open in an editor before. A close
   # notification requires a previous open notification to be sent.
-  class TextDocumentDidCloseNotification
+  class DidCloseTextDocumentNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14363,7 +14561,7 @@ module LSProtocol
 
   # The document save notification is sent from the client to the server when
   # the document got saved in the client.
-  class TextDocumentDidSaveNotification
+  class DidSaveTextDocumentNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14378,7 +14576,7 @@ module LSProtocol
 
   # A document will save notification is sent from the client to the server before
   # the document is actually saved.
-  class TextDocumentWillSaveNotification
+  class WillSaveTextDocumentNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14393,7 +14591,7 @@ module LSProtocol
 
   # The watched files notification is sent from the client to the server when
   # the client detects changes to file watched by the language client.
-  class WorkspaceDidChangeWatchedFilesNotification
+  class DidChangeWatchedFilesNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14408,7 +14606,7 @@ module LSProtocol
 
   # Diagnostics notification are sent from the server to the client to signal
   # results of validation runs.
-  class TextDocumentPublishDiagnosticsNotification
+  class PublishDiagnosticsNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
@@ -14450,7 +14648,7 @@ module LSProtocol
   end
 
   #
-  class CancelRequestNotification
+  class CancelNotification
     include JSON::Serializable
 
     getter id : Int32 | String?
