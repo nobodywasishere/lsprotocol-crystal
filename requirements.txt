@@ -1,0 +1,1 @@
+git+https://github.com/microsoft/lsprotocol@53a0c4910dd052fb6c9b1e35e7aaa170f270ce1b

@@ -30,6 +30,8 @@ position = LSP::Position.new(line: 10, character: 3)
 1. Create a python virtual environment: `python -m venv .venv` (use latest python)
 2. Activate the environment:
     * Windows: `.venv\Script\activate`
-    * Linux\mac: `source .venv\bin\activate`
-3. Install the generator: `python -m pip install git+https://github.com/microsoft/lsprotocol`
-4. Run generator with crystal plugin: `python -m generator --plugin crystalgen --output-dir . --test-dir ./tests`
+    * Linux\mac: `source .venv/bin/activate`
+3. Install the generator: `python -m pip install git+https://github.com/microsoft/lsprotocol` or `make install_deps`
+4. Run generator with crystal plugin: `python -m generator --plugin crystalgen --output-dir . --test-dir ./tests` or `make generate_code`
+5. Generate test data: `python -m generator --plugin testdata --output-dir ./data` or `make generate_testdata`
+6. Run tests: `crystal spec`

@@ -1,7 +1,7 @@
 require "./spec_helper"
 
 describe LSProtocol do
-  test_dir = Path.new(__DIR__, "..", "..", "..", "testdata").normalize
+  test_dir = Path.new(__DIR__, "..", "data").normalize
   test_files = Dir.glob(test_dir / "*.json")
 
   test_files.each do |test|
