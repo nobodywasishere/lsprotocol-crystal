@@ -4,14 +4,24 @@ on:
     branches: [master]
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        crystal: [1.9, 1.10, 1.11, 1.12, 1.13]
+
     steps:
-      - name: Download source
+      - name: Checkout
         uses: actions/checkout@v2
-      - name: Install Crystal
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Use Crystal ${{ matrix.crystal }}
         uses: crystal-lang/install-crystal@v1
-      - name: Install Deps
-        run: sudo apt-get install -y python3
+        with:
+          crystal: ${{ matrix.crystal }}
       - name: Install Shards
         run: shards install
       - name: Install Python reqs
