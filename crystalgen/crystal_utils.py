@@ -35,9 +35,9 @@ def generate_from_spec(spec: model.LSPModel, output_dir: str, test_dir: str) -> 
         output_path.mkdir(parents=True, exist_ok=True)
 
     for file_name in code:
-        pathlib.Path(
-            output_dir, "src", PACKAGE_DIR_NAME, file_name
-        ).write_text(code[file_name], encoding="utf-8")
+        pathlib.Path(output_dir, "src", PACKAGE_DIR_NAME, file_name).write_text(
+            code[file_name], encoding="utf-8"
+        )
 
 
 class TypesCodeGenerator:
@@ -121,9 +121,12 @@ class TypesCodeGenerator:
 
         request_types = []
         for request in lsp_model.requests:
-            class_name = pyUtils._to_class_name(request.method)
-            request_class = f"{class_name}Request"
-            response_class = f"{class_name}Response"
+            class_name = pyUtils._get_class_name(request)
+            if not class_name.endswith("Request"):
+                class_name += "Request"
+            class_name_part = class_name.replace("Request", "")
+            request_class = f"{class_name_part}Request"
+            response_class = f"{class_name_part}Response"
 
             request_classes.append(request_class)
             response_classes.append(response_class)
@@ -153,8 +156,10 @@ class TypesCodeGenerator:
 
         notify_types = []
         for notification in lsp_model.notifications:
-            class_name = pyUtils._to_class_name(notification.method)
-            notification_class = f"{class_name}Notification"
+            class_name = pyUtils._get_class_name(notification)
+            if not class_name.endswith("Notification"):
+                class_name += "Notification"
+            notification_class = class_name
             notification_classes.append(notification_class)
 
             params_type = None
@@ -196,9 +201,15 @@ class TypesCodeGenerator:
             f"alias Response = {' | '.join(sorted(response_classes))}\n",
             f"alias Notification = {' | '.join(sorted(notification_classes))}\n",
             "alias Message = Request | Response | Notification | ResponseErrorMessage | ResponseMessage\n",
-            f"REQUESTS = [\n{', '.join(sorted(request_classes))}\n]\n".replace(", ", ",\n "),
-            f"RESPONSES = [\n{', '.join(sorted(response_classes))}\n]\n".replace(", ", ",\n "),
-            f"NOTIFICATIONS = [\n{', '.join(sorted(notification_classes))}\n]\n".replace(", ", ",\n "),
+            f"REQUESTS = [\n{', '.join(sorted(request_classes))}\n]\n".replace(
+                ", ", ",\n "
+            ),
+            f"RESPONSES = [\n{', '.join(sorted(response_classes))}\n]\n".replace(
+                ", ", ",\n "
+            ),
+            f"NOTIFICATIONS = [\n{', '.join(sorted(notification_classes))}\n]\n".replace(
+                ", ", ",\n "
+            ),
             "MESSAGE_TYPES = REQUESTS + RESPONSES + NOTIFICATIONS + [ResponseErrorMessage, ResponseMessage]",
             "",
         ]
@@ -353,23 +364,23 @@ class TypesCodeGenerator:
         for request in lsp_model.requests:
             if request.params:
                 if request.params.kind == "and":
-                    class_name = f"{pyUtils._to_class_name(request.method)}Params"
+                    class_name = f"{pyUtils._get_class_name(request)}Params"
                     and_types.append((class_name, request.params))
 
             if request.registrationOptions:
                 if request.registrationOptions.kind == "and":
-                    class_name = f"{pyUtils._to_class_name(request.method)}Options"
+                    class_name = f"{pyUtils._get_class_name(request)}Options"
                     and_types.append((class_name, request.registrationOptions))
 
         for notification in lsp_model.notifications:
             if notification.params:
                 if notification.params.kind == "and":
-                    class_name = f"{pyUtils._to_class_name(notification.method)}Params"
+                    class_name = f"{pyUtils._get_class_name(notification)}Params"
                     and_types.append((class_name, notification.params))
 
             if notification.registrationOptions:
                 if notification.registrationOptions.kind == "and":
-                    class_name = f"{pyUtils._to_class_name(notification.method)}Options"
+                    class_name = f"{pyUtils._get_class_name(notification)}Options"
                     and_types.append((class_name, notification.registrationOptions))
 
         for name, type_def in and_types:
@@ -473,14 +484,18 @@ class TypesCodeGenerator:
             self._add_request(request)
 
     def _add_request(self, request: model.Request):
-        class_name = pyUtils._to_class_name(request.method)
+        class_name = pyUtils._get_class_name(request)
+        if not class_name.endswith("Request"):
+            class_name += "Request"
+        class_name_part = class_name.replace("Request", "")
 
+        params_class_name = f"{class_name_part}Params"
         if request.params:
             if (
                 request.params.kind == "reference"
-                and f"{class_name}Params" in CUSTOM_REQUEST_PARAMS_ALIASES
+                and {params_class_name} in CUSTOM_REQUEST_PARAMS_ALIASES
             ):
-                params_type = f"{class_name}Params"
+                params_type = params_class_name
 
                 self._add_type_alias(
                     model.TypeAlias(
@@ -493,7 +508,7 @@ class TypesCodeGenerator:
                 )
             else:
                 params_type = self._generate_type_name(
-                    request.params, f"{class_name}Params"
+                    request.params, params_class_name
                 )
             if not self._has_type(params_type):
                 raise ValueError(f"{class_name}Params type definition is missing.")
@@ -501,16 +516,23 @@ class TypesCodeGenerator:
             params_type = "Nil"
 
         result_type = None
+        result_class_name = f"{class_name_part}Result"
         if request.result:
             if request.result.kind == "reference" or (
                 request.result.kind == "base" and request.result.name == "null"  # type: ignore
             ):
                 result_type = self._generate_type_name(request.result)
             else:
-                result_type = f"{class_name}Result"
+                is_optional = request.result.kind == "or" and any(
+                    t.kind == "base" and t.name == "null" for t in request.result.items
+                )
+                result_type = (
+                    f"{result_class_name}?" if is_optional else result_class_name
+                )
+
                 self._add_type_alias(
                     model.TypeAlias(
-                        name=result_type,
+                        name=result_class_name,
                         type=request.result,
                     )
                 )
@@ -519,10 +541,10 @@ class TypesCodeGenerator:
             params_type = "Nil"
 
         self._add_type_code(
-            f"{class_name}Request",
+            class_name,
             [
                 f"# {self._process_docs(request.documentation) if request.documentation else ''}",
-                f"class {class_name}Request",
+                f"class {class_name}",
                 "  include JSON::Serializable",
                 "",
                 "  # The request id.",
@@ -541,10 +563,11 @@ class TypesCodeGenerator:
             ],
         )
 
+        response_class_name = f"{class_name_part}Response"
         self._add_type_code(
-            f"{class_name}Response",
+            response_class_name,
             [
-                f"class {class_name}Response",
+                f"class {response_class_name}",
                 "  include JSON::Serializable",
                 "",
                 "  # The request id.",
@@ -563,7 +586,9 @@ class TypesCodeGenerator:
             self._add_notification(notification)
 
     def _add_notification(self, notification: model.Notification) -> None:
-        class_name = pyUtils._to_class_name(notification.method)
+        class_name = pyUtils._get_class_name(notification)
+        if not class_name.endswith("Notification"):
+            class_name += "Notification"
 
         if notification.params:
             params_type = self._generate_type_name(
@@ -575,10 +600,10 @@ class TypesCodeGenerator:
             params_type = "Nil"
 
         self._add_type_code(
-            f"{class_name}Notification",
+            class_name,
             [
                 f"# {self._process_docs(notification.documentation) if notification.documentation else ''}",
-                f"class {class_name}Notification",
+                f"class {class_name}",
                 "  include JSON::Serializable",
                 "",
                 "  getter id : Int32 | String?",
