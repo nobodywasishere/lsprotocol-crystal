@@ -3147,14 +3147,14 @@ module LSProtocol
     # Specifies how fields from a completion item should be combined with those
     # from `completionList.itemDefaults`.
     #
-    # If unspecified, all fields will be treated as "replace".
+    # If unspecified, all fields will be treated as ApplyKind.Replace.
     #
-    # If a field's value is "replace", the value from a completion item (if
-    # provided and not `null`) will always be used instead of the value from
-    # `completionItem.itemDefaults`.
+    # If a field's value is ApplyKind.Replace, the value from a completion item
+    # (if provided and not `null`) will always be used instead of the value
+    # from `completionItem.itemDefaults`.
     #
-    # If a field's value is "merge", the values will be merged using the rules
-    # defined against each field below.
+    # If a field's value is ApplyKind.Merge, the values will be merged using
+    # the rules defined against each field below.
     #
     # Servers are only allowed to return `applyKind` if the client
     # signals support for this via the `completionList.applyKindSupport`
@@ -3179,7 +3179,7 @@ module LSProtocol
     # If a completion list specifies a default value and a completion item
     # also specifies a corresponding value, the rules for combining these are
     # defined by `applyKinds` (if the client supports it), defaulting to
-    # "replace".
+    # ApplyKind.Replace.
     #
     # Servers are only allowed to return default values if the client
     # signals support for this via the `completionList.itemDefaults`
@@ -6469,7 +6469,7 @@ module LSProtocol
   # If a completion list specifies a default value and a completion item
   # also specifies a corresponding value, the rules for combining these are
   # defined by `applyKinds` (if the client supports it), defaulting to
-  # "replace".
+  # ApplyKind.Replace.
   #
   # Servers are only allowed to return default values if the client
   # signals support for this via the `completionList.itemDefaults`
@@ -6521,13 +6521,13 @@ module LSProtocol
   # Specifies how fields from a completion item should be combined with those
   # from `completionList.itemDefaults`.
   #
-  # If unspecified, all fields will be treated as "replace".
+  # If unspecified, all fields will be treated as ApplyKind.Replace.
   #
-  # If a field's value is "replace", the value from a completion item (if
+  # If a field's value is ApplyKind.Replace, the value from a completion item (if
   # provided and not `null`) will always be used instead of the value from
   # `completionItem.itemDefaults`.
   #
-  # If a field's value is "merge", the values will be merged using the rules
+  # If a field's value is ApplyKind.Merge, the values will be merged using the rules
   # defined against each field below.
   #
   # Servers are only allowed to return `applyKind` if the client
@@ -6541,15 +6541,15 @@ module LSProtocol
     # Specifies whether commitCharacters on a completion will replace or be
     # merged with those in `completionList.itemDefaults.commitCharacters`.
     #
-    # If "replace", the commit characters from the completion item will
+    # If ApplyKind.Replace, the commit characters from the completion item will
     # always be used unless not provided, in which case those from
     # `completionList.itemDefaults.commitCharacters` will be used. An
     # empty list can be used if a completion item does not have any commit
     # characters and also should not use those from
     # `completionList.itemDefaults.commitCharacters`.
     #
-    # If "merge" the commitCharacters for the completion will be the union
-    # of all values in both `completionList.itemDefaults.commitCharacters`
+    # If ApplyKind.Merge the commitCharacters for the completion will be the
+    # union of all values in both `completionList.itemDefaults.commitCharacters`
     # and the completion's own `commitCharacters`.
     #
     # @since 3.18.0
@@ -6559,13 +6559,13 @@ module LSProtocol
     # Specifies whether the `data` field on a completion will replace or
     # be merged with data from `completionList.itemDefaults.data`.
     #
-    # If "replace", the data from the completion item will be used if
+    # If ApplyKind.Replace, the data from the completion item will be used if
     # provided (and not `null`), otherwise
     # `completionList.itemDefaults.data` will be used. An empty object can
     # be used if a completion item does not have any data but also should
     # not use the value from `completionList.itemDefaults.data`.
     #
-    # If "merge", a shallow merge will be performed between
+    # If ApplyKind.Merge, a shallow merge will be performed between
     # `completionList.itemDefaults.data` and the completion's own data
     # using the following rules:
     #
@@ -7800,6 +7800,11 @@ module LSProtocol
     @[JSON::Field(key: "documentSymbol")]
     getter document_symbol : DocumentSymbolClientCapabilities?
 
+    # Defines which filters the client supports.
+    #
+    # @since 3.18.0
+    getter filters : TextDocumentFilterClientCapabilities?
+
     # Capabilities specific to the `textDocument/foldingRange` request.
     #
     # @since 3.10.0
@@ -7908,6 +7913,7 @@ module LSProtocol
       @document_highlight : DocumentHighlightClientCapabilities? = nil,
       @document_link : DocumentLinkClientCapabilities? = nil,
       @document_symbol : DocumentSymbolClientCapabilities? = nil,
+      @filters : TextDocumentFilterClientCapabilities? = nil,
       @folding_range : FoldingRangeClientCapabilities? = nil,
       @formatting : DocumentFormattingClientCapabilities? = nil,
       @hover : HoverClientCapabilities? = nil,
@@ -8138,7 +8144,9 @@ module LSProtocol
 
     # A glob pattern, like **​/*.{ts,js}. See TextDocumentFilter for examples.
     #
-    # @since 3.18.0 - support for relative patterns.
+    # @since 3.18.0 - support for relative patterns. Whether clients support
+    # relative patterns depends on the client capability
+    # `textDocuments.filters.relativePatternSupport`.
     getter pattern : GlobPattern?
 
     # A Uri `Uri#scheme`, like `file` or `untitled`.
@@ -8163,7 +8171,9 @@ module LSProtocol
 
     # A glob pattern, like **​/*.{ts,js}. See TextDocumentFilter for examples.
     #
-    # @since 3.18.0 - support for relative patterns.
+    # @since 3.18.0 - support for relative patterns. Whether clients support
+    # relative patterns depends on the client capability
+    # `textDocuments.filters.relativePatternSupport`.
     getter pattern : GlobPattern?
 
     # A Uri `Uri#scheme`, like `file` or `untitled`.
@@ -8188,7 +8198,9 @@ module LSProtocol
 
     # A glob pattern, like **​/*.{ts,js}. See TextDocumentFilter for examples.
     #
-    # @since 3.18.0 - support for relative patterns.
+    # @since 3.18.0 - support for relative patterns. Whether clients support
+    # relative patterns depends on the client capability
+    # `textDocuments.filters.relativePatternSupport`.
     getter pattern : GlobPattern
 
     # A Uri `Uri#scheme`, like `file` or `untitled`.
@@ -8673,6 +8685,21 @@ module LSProtocol
       @dynamic_registration : Bool? = nil,
       @will_save : Bool? = nil,
       @will_save_wait_until : Bool? = nil,
+    )
+    end
+  end
+
+  class TextDocumentFilterClientCapabilities
+    include JSON::Serializable
+
+    # The client supports Relative Patterns.
+    #
+    # @since 3.18.0
+    @[JSON::Field(key: "relativePatternSupport")]
+    getter relative_pattern_support : Bool?
+
+    def initialize(
+      @relative_pattern_support : Bool? = nil,
     )
     end
   end
@@ -11457,42 +11484,27 @@ module LSProtocol
   # merged.
   #
   # @since 3.18.0
-  enum ApplyKind
+  enum ApplyKind : UInt32
     # The value from the individual item (if provided and not `null`) will be
     # used instead of the default.
-    Replace
+    Replace = 1
 
     # The value from the item will be merged with the default.
     #
     # The specific rules for mergeing values are defined against each field
     # that supports merging.
-    Merge
+    Merge = 2
 
     def self.new(pull : JSON::PullParser) : self
       self.from_json(pull)
     end
 
     def self.from_json(pull : JSON::PullParser) : self
-      case pull.kind
-      when .int?
-        from_value(pull.read_int)
-      when .string?
-        parse(pull.read_string)
-      else
-        {% if @type.annotation(Flags) %}
-          pull.raise "Expecting int, string or array in JSON for #{self.class}, not #{pull.kind}"
-        {% else %}
-          pull.raise "Expecting int or string in JSON for #{self.class}, not #{pull.kind}"
-        {% end %}
-      end
+      self.from_value?(pull.read_int) || pull.raise "Unknown enum #{self} value: #{pull.int_value}"
     end
 
-    def to_json(builder : JSON::Builder)
-      builder.string self.to_s
-    end
-
-    def to_s(io : IO) : Nil
-      io << self.to_s
+    def to_json(json : JSON::Builder)
+      json.number(value)
     end
   end
 
@@ -11839,7 +11851,7 @@ module LSProtocol
   # A document filter describes a top level text document or
   # a notebook cell document.
   #
-  # @since 3.17.0 - proposed support for NotebookCellTextDocumentFilter.
+  # @since 3.17.0 - support for NotebookCellTextDocumentFilter.
   alias DocumentFilter = NotebookCellTextDocumentFilter | TextDocumentFilter
 
   # LSP object definition.
